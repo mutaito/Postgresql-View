@@ -1,0 +1,54 @@
+-- View: business.view_withdrawal
+
+-- DROP VIEW business.view_withdrawal;
+
+CREATE OR REPLACE VIEW business.view_withdrawal AS 
+ WITH sellers AS (
+         SELECT seller_1.id,
+            seller_1.id_seller_list,
+            seller_1.business_name,
+            seller_1.short_name,
+            seller_1.rut,
+            seller_1.dv,
+            seller_1.opening_hour,
+            seller_1.closing_hour,
+            row_number() OVER (PARTITION BY seller_1.id_seller_list, seller_1.rut, seller_1.dv ORDER BY seller_1.id_seller_list, seller_1.rut, seller_1.dv, seller_1.created_at DESC) AS orden
+           FROM business.seller seller_1
+          WHERE seller_1.rut <> '12345678'::text
+        )
+ SELECT withdrawal.id,
+    withdrawal.withdrawal_date::date AS fecha,
+    seller.rut AS rut_proveedor,
+    seller.dv AS digito_verificador_proveedor,
+    upper(seller.business_name) AS razon_social,
+    NULL::text AS tipo_producto,
+    upper(withdrawal.purpose_trip) AS proposito_viaje,
+    upper(withdrawal.status) AS estado_del_retiro,
+    upper(withdrawal.responsable) AS responsable,
+    upper(withdrawal.observation) AS motivo,
+    upper(withdrawal.comment) AS comentario,
+    to_char(withdrawal.withdrawal_date, 'HH24:MI'::text) AS hora,
+    NULL::text AS compania,
+    upper(transport_vehicle.licence_plate) AS patente,
+    transport_driver.phone AS telefono,
+    transport_driver.transport_driver_name AS nombre_chofer,
+    upper(concat(facility.street,
+        CASE
+            WHEN facility.number IS NULL THEN ''::text
+            ELSE ' '::text
+        END,
+        CASE
+            WHEN facility.number IS NULL THEN ''::text
+            ELSE facility.number::text
+        END, ', ', facility.district)) AS direccion,
+    upper(facility.district) AS comuna,
+    upper(withdrawal.observation) AS motivo_no_retiro
+   FROM business.withdrawal withdrawal
+     JOIN sellers seller ON seller.id = withdrawal.id_seller AND seller.orden = 1
+     JOIN business.transport transport ON withdrawal.id_transport = transport.id
+     JOIN business.transport_driver transport_driver ON transport.id_transport_driver = transport_driver.id
+     JOIN business.transport_vehicle transport_vehicle ON transport.id_transport_vehicle = transport_vehicle.id AND transport_vehicle.licence_plate <> 'assd23'::text
+     JOIN business.facility ON facility.id_seller = seller.id;
+	 
+ALTER TABLE business.view_withdrawal
+  OWNER TO usr_lgst_tren;
