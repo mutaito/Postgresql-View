@@ -1,0 +1,38 @@
+-- View: business.withdrawal_resume
+
+-- DROP VIEW business.withdrawal_resume;
+
+CREATE OR REPLACE VIEW business.withdrawal_resume AS 
+ WITH sellers AS (
+         SELECT seller_1.id,
+            seller_1.id_seller_list,
+            seller_1.business_name,
+            seller_1.short_name,
+            seller_1.rut,
+            seller_1.dv,
+            seller_1.opening_hour,
+            seller_1.closing_hour,
+            row_number() OVER (PARTITION BY seller_1.id_seller_list, seller_1.rut, seller_1.dv ORDER BY seller_1.id_seller_list, seller_1.rut, seller_1.dv, seller_1.created_at DESC) AS orden
+           FROM business.seller seller_1
+          WHERE seller_1.rut <> '12345678'::text
+        ), grouped_sellers AS (
+         SELECT upper(transport_vehicle.licence_plate) AS patente,
+            upper(withdrawal.status) AS estado_del_retiro,
+            withdrawal.withdrawal_date::date AS fecha,
+            count(withdrawal.status) AS cantidad
+           FROM business.withdrawal withdrawal
+             JOIN sellers seller ON seller.id = withdrawal.id_seller AND seller.orden = 1
+             JOIN business.transport transport ON withdrawal.id_transport = transport.id
+             JOIN business.transport_vehicle transport_vehicle ON transport.id_transport_vehicle = transport_vehicle.id AND transport_vehicle.licence_plate <> 'assd23'::text
+             JOIN business.facility ON facility.id_seller = seller.id
+          GROUP BY transport_vehicle.licence_plate, withdrawal.status, (withdrawal.withdrawal_date::date)
+        )
+ SELECT grouped_sellers.patente,
+    grouped_sellers.estado_del_retiro,
+    grouped_sellers.fecha,
+    grouped_sellers.cantidad,
+    uuid_generate_v4() AS id
+   FROM grouped_sellers;
+
+ALTER TABLE business.withdrawal_resume
+  OWNER TO usr_lgst_tren;
